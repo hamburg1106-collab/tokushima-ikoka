@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PEOPLE, personName } from '../data/people'
 import type { PackingItem, PersonId } from '../types'
 import { newItemId } from '../lib/tripStore'
@@ -15,6 +15,13 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
   const [openAssignee, setOpenAssignee] = useState<string | null>(null)
   /** 直前に削除した1件。「元に戻す」で復活させる */
   const [deleted, setDeleted] = useState<PackingItem | null>(null)
+
+  // 取り消しバーは10秒で自動的に消す
+  useEffect(() => {
+    if (!deleted) return
+    const id = window.setTimeout(() => setDeleted(null), 10_000)
+    return () => window.clearTimeout(id)
+  }, [deleted])
 
   const add = (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import Gate from './components/Gate'
 import TripView from './components/TripView'
@@ -33,6 +33,9 @@ export default function App() {
   const [checkins, setCheckins] = useState<Map<string, Checkin>>(() => new Map())
   const [packing, setPacking] = useState<PackingItem[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [seeding, setSeeding] = useState(false)
+  /** 初期データの流し込みは1回だけ。何度も走らせない */
+  const seededRef = useRef({ items: false, packing: false })
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -44,12 +47,16 @@ export default function App() {
     if (!code) return
     const unsubscribe = subscribeItems(
       code,
-      (next) => {
+      (next, fromCache) => {
         setItems(next)
-        // 初回だけ、空なら初期行程を流し込む
-        if (next.length === 0) {
-          seedItinerary(code).catch(() => setError('初期データの登録に失敗しました。'))
-        }
+        // 初期行程を流し込むのは「サーバが本当に空」かつ「まだ流していない」ときだけ。
+        // キャッシュ由来の空で書き込むと、電波復帰時にサーバの最新データを上書きしてしまう。
+        if (next.length > 0 || fromCache || seededRef.current.items) return
+        seededRef.current.items = true
+        setSeeding(true)
+        seedItinerary(code)
+          .catch(() => setError('初期データの登録に失敗しました。'))
+          .finally(() => setSeeding(false))
       },
       () => setError('データを読み込めませんでした。通信状況を確認してください。'),
     )
@@ -85,7 +92,20 @@ export default function App() {
   }, [])
 
   const handleChangeMe = useCallback(() => {
+    if (!window.confirm('別の人に切り替えますか？')) return
     removeStorage(STORAGE_KEYS.me)
+    setMe(null)
+  }, [])
+
+  /** 合言葉から入れ直す。間違った合言葉が保存されたときの復旧手段 */
+  const handleChangeCode = useCallback(() => {
+    if (!window.confirm('合言葉を入れ直しますか？')) return
+    removeStorage(STORAGE_KEYS.code)
+    removeStorage(STORAGE_KEYS.me)
+    seededRef.current = { items: false, packing: false }
+    setItems(null)
+    setError(null)
+    setCode(null)
     setMe(null)
   }, [])
 
@@ -94,11 +114,11 @@ export default function App() {
     if (!code) return
     return subscribePacking(
       code,
-      (next) => {
+      (next, fromCache) => {
         setPacking(next)
-        if (next.length === 0) {
-          seedPacking(code).catch(() => setError('持ち物リストの初期登録に失敗しました。'))
-        }
+        if (next.length > 0 || fromCache || seededRef.current.packing) return
+        seededRef.current.packing = true
+        seedPacking(code).catch(() => setError('持ち物リストの初期登録に失敗しました。'))
       },
       () => setError('持ち物リストを読み込めませんでした。'),
     )
@@ -162,11 +182,12 @@ export default function App() {
     )
   }
 
-  if (items === null) {
+  // 初期データを流し込んでいる最中に空の画面を見せない
+  if (items === null || (seeding && items.length === 0)) {
     return (
       <div className="gate">
         <h1 className="gate__title">徳島いこか</h1>
-        <p className="gate__lead">読み込み中…</p>
+        <p className="gate__lead">{seeding ? '旅程を準備しています…' : '読み込み中…'}</p>
       </div>
     )
   }
@@ -187,6 +208,7 @@ export default function App() {
       theme={theme}
       onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       onChangeMe={handleChangeMe}
+      onChangeCode={handleChangeCode}
       onReset={handleReset}
     />
   )

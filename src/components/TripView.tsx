@@ -20,6 +20,7 @@ type Props = {
   onDismissError: () => void
   onToggleTheme: () => void
   onChangeMe: () => void
+  onChangeCode: () => void
   onReset: () => void
   onToggleCheckin: (item: TimelineItem, alreadyDone: boolean) => void
   onSaveItem: (item: TimelineItem) => void
@@ -55,6 +56,7 @@ export default function TripView({
   onDismissError,
   onToggleTheme,
   onChangeMe,
+  onChangeCode,
   onReset,
   onToggleCheckin,
   onSaveItem,
@@ -72,11 +74,27 @@ export default function TripView({
   const listRef = useRef<HTMLDivElement>(null)
   /** 自動スクロールは日を切り替えたときの1回だけ。見ている最中に引き戻さないため */
   const autoScrolledRef = useRef(false)
+  /** 手動でタブを選んだか。選んでいれば日付が変わっても勝手に動かさない */
+  const dayPickedByUserRef = useRef(false)
 
   // 1分ごとに現在時刻を更新（「今ここ」マーカーのため）
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(id)
+  }, [])
+
+  // iPhoneはアプリを閉じずに放置されるため、復帰時に時計を合わせ直す。
+  // これが無いと、日付をまたいでも前日のタブを見続けることになる。
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState !== 'visible') return
+      const current = new Date()
+      setNow(current)
+      const today = todayDayNumber(current)
+      if (today && !dayPickedByUserRef.current) setActiveDay(today)
+    }
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
   }, [])
 
   const visibleItems = useMemo(
@@ -96,17 +114,23 @@ export default function TripView({
     return next?.id ?? null
   }, [visibleItems, now, activeDay])
 
-  // 日を切り替えたら、次の自動スクロールを1回だけ許可する
+  // 日付が変わったら、手動でタブを触っていない限り今日に合わせる
+  useEffect(() => {
+    const today = todayDayNumber(now)
+    if (today && !dayPickedByUserRef.current && today !== activeDay) setActiveDay(today)
+  }, [now, activeDay])
+
+  // 日を切り替えたとき・持ち物から旅程に戻ったときに、自動スクロールを1回だけ許可する
   useEffect(() => {
     autoScrolledRef.current = false
-  }, [activeDay])
+  }, [activeDay, view])
 
   useEffect(() => {
     if (autoScrolledRef.current || !nextItemId || !listRef.current) return
     autoScrolledRef.current = true
     const target = listRef.current.querySelector<HTMLElement>(`[data-item-id="${nextItemId}"]`)
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [nextItemId, activeDay])
+  }, [nextItemId, activeDay, view])
 
   const doneCount = visibleItems.filter((item) => checkins.has(item.id)).length
   const remainingDays = daysUntil(TRIP_DAYS[0].date, now)
@@ -121,7 +145,10 @@ export default function TripView({
         view={view}
         onChangeView={setView}
         activeDay={activeDay}
-        onChangeDay={setActiveDay}
+        onChangeDay={(day) => {
+          dayPickedByUserRef.current = true
+          setActiveDay(day)
+        }}
       />
 
       {!online && (
@@ -142,7 +169,7 @@ export default function TripView({
       <main className="main">
         <div className="toolbar">
           <button type="button" className="ghost-btn ghost-btn--sm" onClick={onChangeMe}>
-            あなた：{personName(me)}
+            あなた：{personName(me)} ▸ 切替
           </button>
 
           {view === 'trip' && (
@@ -165,7 +192,11 @@ export default function TripView({
 
             <div className="list" ref={listRef}>
               {visibleItems.length === 0 && (
-                <p className="empty">この日に{personName(me)}の予定はありません。</p>
+                <p className="empty">
+                  {onlyMine
+                    ? `この日に${personName(me)}の予定はありません。`
+                    : 'この日の予定はまだありません。'}
+                </p>
               )}
               {visibleItems.map((item) => (
                 <div key={item.id} data-item-id={item.id}>
@@ -205,6 +236,12 @@ export default function TripView({
             </p>
           </div>
         )}
+
+        <div className="settings">
+          <button type="button" className="link-btn" onClick={onChangeCode}>
+            合言葉を入れ直す
+          </button>
+        </div>
       </main>
 
       {editing && (

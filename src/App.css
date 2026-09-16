@@ -152,14 +152,21 @@
 }
 
 /* ───────── 削除の取り消し ───────── */
+/* リストの下に置くと22件の下＝画面外になるので、画面下部に固定する */
 .undo-bar {
-  margin-top: 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--surface-sub);
-  border: 1px solid var(--line);
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 40;
+  width: min(520px, calc(100% - 32px));
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
   font-size: 12px;
-  color: var(--text-sub);
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -456,9 +463,10 @@
 .pack__check {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
-  padding: 0 2px;
+  min-width: 44px;
+  min-height: 44px;
   cursor: pointer;
   color: var(--accent);
 }
@@ -498,12 +506,15 @@
   font-weight: 700;
 }
 
+/* 「担当」の隣にあるので、間隔とタップ領域を広めに取って誤爆を防ぐ */
 .pack__delete {
   background: none;
   border: none;
-  font-size: 16px;
+  font-size: 18px;
   color: var(--text-sub);
-  padding: 0 4px;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: 6px;
   cursor: pointer;
 }
 
@@ -543,6 +554,21 @@
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-sub);
+}
+
+.settings {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--text-sub);
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 8px 12px;
+  cursor: pointer;
 }
 
 .legend {

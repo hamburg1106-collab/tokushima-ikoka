@@ -29,7 +29,17 @@ type Props = {
   onEdit: (item: TimelineItem) => void
 }
 
-const isEveryone = (participants: PersonId[]) => participants.length === ALL_IDS.length
+/**
+ * 参加者の表示。知りたいのは「誰が一緒か」ではなく「誰が違うか」。
+ * 1日目は5人参加なので、全カードに5個並べると読みにくい。
+ * 欠員が2人までなら「全員（勇なし）」の形にまとめる。
+ */
+const participantLabel = (participants: PersonId[]): string | null => {
+  const missing = ALL_IDS.filter((id) => !participants.includes(id))
+  if (missing.length === 0) return '全員'
+  if (missing.length <= 2) return `全員（${missing.map(personName).join('・')}なし）`
+  return null
+}
 
 export default function ItemCard({
   item,
@@ -40,6 +50,7 @@ export default function ItemCard({
   onEdit,
 }: Props) {
   const done = Boolean(checkin)
+  const label = participantLabel(item.participants)
   const detail: string[] = []
   if (item.move?.flightNo) detail.push(item.move.flightNo)
   if (item.move?.arriveTime) detail.push(`着 ${item.move.arriveTime}`)
@@ -63,8 +74,8 @@ export default function ItemCard({
             {KIND_ICON[item.kind]} {KIND_LABEL[item.kind]}
           </span>
           <span className="card__people">
-            {isEveryone(item.participants) ? (
-              <span className="chip chip--all">全員</span>
+            {label ? (
+              <span className={`chip ${label === '全員' ? 'chip--all' : ''}`}>{label}</span>
             ) : (
               item.participants.map((id) => (
                 <span key={id} className="chip">

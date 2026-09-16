@@ -21,11 +21,13 @@ export default function Gate({ initialCode, onDone }: Props) {
     if (!trimmed) return
     setChecking(true)
     setError(null)
-    const ok = await verifyCode(trimmed)
+    const result = await verifyCode(trimmed)
     setChecking(false)
-    if (ok) {
+    if (result === 'ok') {
       setCode(trimmed)
       setVerified(true)
+    } else if (result === 'offline') {
+      setError('電波が届いていないため確認できません。つながる場所で開いてください。')
     } else {
       setError('合言葉が違うようです。大文字・小文字もそのまま入れてください。')
     }

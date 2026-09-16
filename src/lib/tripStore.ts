@@ -20,7 +20,12 @@ const getFs = (): Promise<FirestoreBundle> => {
     const [{ db }, fs] = await Promise.all([import('./firebase'), import('firebase/firestore')])
     return { db, fs }
   })()
-  return bundlePromise
+  // 失敗したPromiseを掴み続けると、以降すべての操作が永久に失敗する。
+  // （アプリを更新した直後、古いチャンクが消えていると起きる）
+  return bundlePromise.catch((e: unknown) => {
+    bundlePromise = null
+    throw e
+  })
 }
 
 /** trips/{code}/items に予定を置く。codeが合言葉そのもの */
@@ -34,6 +39,28 @@ const checkinsRef = ({ db, fs }: FirestoreBundle, code: string) =>
 /** 持ち物リスト */
 const packingRef = ({ db, fs }: FirestoreBundle, code: string) =>
   fs.collection(db, 'trips', code, 'packing')
+
+/** 初期データを流し込み済みかを記録しておく場所 */
+const seedFlagRef = ({ db, fs }: FirestoreBundle, code: string) =>
+  fs.doc(db, 'trips', code, 'meta', 'seeded')
+
+/**
+ * 初期データの二重投入を防ぐ。
+ * 「全部消したのに初期データが復活する」のを止めるため、
+ * 件数が0かどうかではなく、この記録の有無で判断する。
+ */
+const markSeeded = async (bundle: FirestoreBundle, code: string, key: 'items' | 'packing') => {
+  await bundle.fs.setDoc(seedFlagRef(bundle, code), { [key]: true }, { merge: true })
+}
+
+const isSeeded = async (
+  bundle: FirestoreBundle,
+  code: string,
+  key: 'items' | 'packing',
+): Promise<boolean> => {
+  const snapshot = await bundle.fs.getDoc(seedFlagRef(bundle, code))
+  return snapshot.exists() && snapshot.data()?.[key] === true
+}
 
 /**
  * 購読の共通処理。
@@ -65,45 +92,63 @@ export const sortItems = (items: TimelineItem[]): TimelineItem[] =>
     .slice()
     .sort((a, b) => toDate(a.date, a.time).getTime() - toDate(b.date, b.time).getTime())
 
+export type VerifyResult = 'ok' | 'ng' | 'offline'
+
 /**
  * 合言葉が正しいか確認する。
  * ルールで tripId が一致しない読み取りは permission-denied になるので、
- * 「読めたかどうか」がそのまま合言葉の検証になる。
+ * 「サーバから読めたかどうか」がそのまま合言葉の検証になる。
+ *
+ * 通常のgetDocsはオフラインだとキャッシュを返して成功してしまい、
+ * 間違った合言葉でも通ってしまう。必ずサーバに問い合わせること。
  */
-export const verifyCode = async (code: string): Promise<boolean> => {
+export const verifyCode = async (code: string): Promise<VerifyResult> => {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline'
   try {
     const bundle = await getFs()
-    await bundle.fs.getDocs(itemsRef(bundle, code))
-    return true
-  } catch {
-    return false
+    await bundle.fs.getDocsFromServer(itemsRef(bundle, code))
+    return 'ok'
+  } catch (e: unknown) {
+    // 通信できなかっただけなら「間違い」とは言えない
+    const codeName = (e as { code?: string } | null)?.code
+    if (codeName === 'unavailable' || codeName === 'failed-precondition') return 'offline'
+    return 'ng'
   }
 }
 
 /** 予定の購読。変更があるたびcallbackが呼ばれる */
 export const subscribeItems = (
   code: string,
-  onChange: (items: TimelineItem[]) => void,
+  onChange: (items: TimelineItem[], fromCache: boolean) => void,
   onError: (error: Error) => void,
 ) =>
   subscribe(
     (bundle) =>
       bundle.fs.onSnapshot(
         itemsRef(bundle, code),
-        (snapshot) => onChange(sortItems(snapshot.docs.map((d) => d.data() as TimelineItem))),
+        (snapshot) =>
+          onChange(
+            sortItems(snapshot.docs.map((d) => d.data() as TimelineItem)),
+            snapshot.metadata.fromCache,
+          ),
         onError,
       ),
     onError,
   )
 
-/** 初期行程を書き込む。空のときの初回セットアップ用 */
+/**
+ * 初期行程を書き込む。初回セットアップ用。
+ * 既に流し込み済みなら何もしない（消した予定が復活しないように）。
+ */
 export const seedItinerary = async (code: string): Promise<void> => {
   const bundle = await getFs()
+  if (await isSeeded(bundle, code, 'items')) return
   const batch = bundle.fs.writeBatch(bundle.db)
   for (const item of ITINERARY) {
     batch.set(bundle.fs.doc(itemsRef(bundle, code), item.id), item)
   }
   await batch.commit()
+  await markSeeded(bundle, code, 'items')
 }
 
 /**
@@ -185,7 +230,7 @@ export const deleteItem = async (code: string, itemId: string): Promise<void> =>
 /** 持ち物の購読（並び順でソート済み） */
 export const subscribePacking = (
   code: string,
-  onChange: (items: PackingItem[]) => void,
+  onChange: (items: PackingItem[], fromCache: boolean) => void,
   onError: (error: Error) => void,
 ) =>
   subscribe(
@@ -194,21 +239,26 @@ export const subscribePacking = (
         packingRef(bundle, code),
         (snapshot) => {
           const items = snapshot.docs.map((d) => d.data() as PackingItem)
-          onChange(items.sort((a, b) => a.order - b.order))
+          onChange(
+            items.sort((a, b) => a.order - b.order),
+            snapshot.metadata.fromCache,
+          )
         },
         onError,
       ),
     onError,
   )
 
-/** 持ち物の初期リストを流し込む（空のときだけ呼ぶ） */
+/** 持ち物の初期リストを流し込む。こちらも一度きり */
 export const seedPacking = async (code: string): Promise<void> => {
   const bundle = await getFs()
+  if (await isSeeded(bundle, code, 'packing')) return
   const batch = bundle.fs.writeBatch(bundle.db)
   for (const item of INITIAL_PACKING) {
     batch.set(bundle.fs.doc(packingRef(bundle, code), item.id), item)
   }
   await batch.commit()
+  await markSeeded(bundle, code, 'packing')
 }
 
 /** 持ち物1件の保存（追加・チェック・担当変更すべてこれ） */
