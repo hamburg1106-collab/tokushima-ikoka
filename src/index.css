@@ -1,0 +1,79 @@
+/* 阿波藍をアクセントにしたテーマ。ライト／ダーク両対応 */
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-sub: #efece4;
+  --text: #1d2430;
+  --text-sub: #5d6773;
+  --line: #ddd8cc;
+  --accent: #1b4a6b;
+  --accent-text: #ffffff;
+  --mine: #e4eff6;
+  --mine-line: #1b4a6b;
+  --other: #f1efe8;
+  --other-text: #6b7480;
+  --now: #c8622c;
+
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #14181d;
+    --surface: #1e242b;
+    --surface-sub: #262d35;
+    --text: #e9eef3;
+    --text-sub: #9aa6b2;
+    --line: #333c46;
+    --accent: #7fb4d6;
+    --accent-text: #14181d;
+    --mine: #1f3444;
+    --mine-line: #7fb4d6;
+    --other: #232a32;
+    --other-text: #8c97a3;
+    --now: #e08b57;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #14181d;
+  --surface: #1e242b;
+  --surface-sub: #262d35;
+  --text: #e9eef3;
+  --text-sub: #9aa6b2;
+  --line: #333c46;
+  --accent: #7fb4d6;
+  --accent-text: #14181d;
+  --mine: #1f3444;
+  --mine-line: #7fb4d6;
+  --other: #232a32;
+  --other-text: #8c97a3;
+  --now: #e08b57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
