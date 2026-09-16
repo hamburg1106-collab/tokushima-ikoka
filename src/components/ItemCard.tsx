@@ -45,7 +45,8 @@ export default function ItemCard({
   if (item.move?.arriveTime) detail.push(`着 ${item.move.arriveTime}`)
   if (item.stay?.checkIn) detail.push(`IN ${item.stay.checkIn}`)
   if (item.sight?.duration) detail.push(item.sight.duration)
-  if (item.meal?.shop) detail.push(item.meal.shop)
+  // 店名は「場所」と同じことが多いので、違うときだけ出す（二重表示を避ける）
+  if (item.meal?.shop && item.meal.shop !== item.place) detail.push(item.meal.shop)
 
   return (
     <div className={`row ${mine ? 'row--mine' : 'row--other'}`}>

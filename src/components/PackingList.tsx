@@ -13,6 +13,8 @@ type Props = {
 export default function PackingList({ items, me, onSave, onDelete }: Props) {
   const [newName, setNewName] = useState('')
   const [openAssignee, setOpenAssignee] = useState<string | null>(null)
+  /** 直前に削除した1件。「元に戻す」で復活させる */
+  const [deleted, setDeleted] = useState<PackingItem | null>(null)
 
   const add = (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,9 +82,8 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
               type="button"
               className="pack__delete"
               onClick={() => {
-                if (window.confirm(`「${item.name}」を削除します。よろしいですか？`)) {
-                  onDelete(item)
-                }
+                onDelete(item)
+                setDeleted(item)
               }}
               aria-label="削除"
             >
@@ -113,6 +114,22 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
           </li>
         ))}
       </ul>
+
+      {deleted && (
+        <div className="undo-bar">
+          <span>「{deleted.name}」を削除しました</span>
+          <button
+            type="button"
+            className="undo-bar__btn"
+            onClick={() => {
+              onSave(deleted)
+              setDeleted(null)
+            }}
+          >
+            元に戻す
+          </button>
+        </div>
+      )}
 
       <form className="packing__add" onSubmit={add}>
         <input

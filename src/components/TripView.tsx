@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ItemCard from './ItemCard'
 import ItemEditor from './ItemEditor'
 import PackingList from './PackingList'
+import TripHeader from './TripHeader'
+import type { Theme, View } from './TripHeader'
 import { TRIP_DAYS } from '../data/itinerary'
 import { ALL_IDS, OWNER_ID, personName } from '../data/people'
 import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
@@ -9,13 +11,13 @@ import { daysUntil, toDate, toDateKey } from '../lib/time'
 import { newItemId } from '../lib/tripStore'
 import { useOnline } from '../lib/useOnline'
 
-type Theme = 'light' | 'dark'
-
 type Props = {
   items: TimelineItem[]
   checkins: Map<string, Checkin>
   me: PersonId
   theme: Theme
+  error: string | null
+  onDismissError: () => void
   onToggleTheme: () => void
   onChangeMe: () => void
   onReset: () => void
@@ -49,6 +51,8 @@ export default function TripView({
   checkins,
   me,
   theme,
+  error,
+  onDismissError,
   onToggleTheme,
   onChangeMe,
   onReset,
@@ -63,11 +67,13 @@ export default function TripView({
   const [onlyMine, setOnlyMine] = useState(false)
   const [activeDay, setActiveDay] = useState<1 | 2 | 3>(() => todayDayNumber(new Date()) ?? 1)
   const [editing, setEditing] = useState<{ item: TimelineItem; isNew: boolean } | null>(null)
-  const [view, setView] = useState<'trip' | 'packing'>('trip')
+  const [view, setView] = useState<View>('trip')
   const online = useOnline()
   const listRef = useRef<HTMLDivElement>(null)
+  /** 自動スクロールは日を切り替えたときの1回だけ。見ている最中に引き戻さないため */
+  const autoScrolledRef = useRef(false)
 
-  // 1分ごとに現在時刻を更新（「今ここ」マーカーと自動スクロールのため）
+  // 1分ごとに現在時刻を更新（「今ここ」マーカーのため）
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(id)
@@ -90,9 +96,14 @@ export default function TripView({
     return next?.id ?? null
   }, [visibleItems, now, activeDay])
 
-  // 今日のタブを開いたら、直近の予定まで自動スクロール
+  // 日を切り替えたら、次の自動スクロールを1回だけ許可する
   useEffect(() => {
-    if (!nextItemId || !listRef.current) return
+    autoScrolledRef.current = false
+  }, [activeDay])
+
+  useEffect(() => {
+    if (autoScrolledRef.current || !nextItemId || !listRef.current) return
+    autoScrolledRef.current = true
     const target = listRef.current.querySelector<HTMLElement>(`[data-item-id="${nextItemId}"]`)
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [nextItemId, activeDay])
@@ -103,66 +114,29 @@ export default function TripView({
 
   return (
     <div className="app">
-      <header className="header">
-        <div className="header__top">
-          <h1 className="header__title">徳島いこか</h1>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={onToggleTheme}
-            aria-label="テーマ切り替え"
-          >
-            {theme === 'light' ? '🌙' : '☀️'}
-          </button>
-        </div>
-
-        <p className="header__countdown">
-          {remainingDays > 0 ? (
-            <strong>出発まであと{remainingDays}日</strong>
-          ) : (
-            <strong>旅行中</strong>
-          )}
-          <span className="header__range">10/29（木）〜10/31（土）鳴門</span>
-        </p>
-
-        <div className="segmented" role="tablist" aria-label="表示切替">
-          <button
-            type="button"
-            className={`segment ${view === 'trip' ? 'segment--on' : ''}`}
-            onClick={() => setView('trip')}
-          >
-            旅程
-          </button>
-          <button
-            type="button"
-            className={`segment ${view === 'packing' ? 'segment--on' : ''}`}
-            onClick={() => setView('packing')}
-          >
-            持ち物
-          </button>
-        </div>
-
-        <nav className="tabs" aria-label="日程" hidden={view !== 'trip'}>
-          {TRIP_DAYS.map((d) => (
-            <button
-              key={d.day}
-              type="button"
-              className={`tab ${d.day === activeDay ? 'tab--active' : ''}`}
-              onClick={() => setActiveDay(d.day)}
-            >
-              <span className="tab__label">{d.label}</span>
-              <span className="tab__date">
-                {Number(d.date.slice(5, 7))}/{Number(d.date.slice(8, 10))}（{d.weekday}）
-              </span>
-            </button>
-          ))}
-        </nav>
-      </header>
+      <TripHeader
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        remainingDays={remainingDays}
+        view={view}
+        onChangeView={setView}
+        activeDay={activeDay}
+        onChangeDay={setActiveDay}
+      />
 
       {!online && (
-        <p className="offline-bar">
+        <p className="notice notice--offline">
           オフラインです。表示は保存済みの内容で、変更は電波が戻ってから送られます。
         </p>
+      )}
+
+      {error && (
+        <div className="notice notice--error">
+          <span>{error}</span>
+          <button type="button" className="notice__close" onClick={onDismissError}>
+            閉じる
+          </button>
+        </div>
       )}
 
       <main className="main">
@@ -184,45 +158,40 @@ export default function TripView({
         </div>
 
         {view === 'packing' ? (
-          <PackingList
-            items={packing}
-            me={me}
-            onSave={onSavePacking}
-            onDelete={onDeletePacking}
-          />
+          <PackingList items={packing} me={me} onSave={onSavePacking} onDelete={onDeletePacking} />
         ) : (
           <>
-        <p className="legend">左＝{personName(me)}の予定 ／ 右＝他の人の予定</p>
+            <p className="legend">左＝{personName(me)}の予定 ／ 右＝他の人の予定</p>
 
-        <div className="list" ref={listRef}>
-          {visibleItems.length === 0 && (
-            <p className="empty">この日に{personName(me)}の予定はありません。</p>
-          )}
-          {visibleItems.map((item) => (
-            <div key={item.id} data-item-id={item.id}>
-              <ItemCard
-                item={item}
-                mine={item.participants.includes(me)}
-                isNow={item.id === nextItemId}
-                checkin={checkins.get(item.id)}
-                onToggleCheckin={onToggleCheckin}
-                onEdit={(target) => setEditing({ item: target, isNew: false })}
-              />
+            <div className="list" ref={listRef}>
+              {visibleItems.length === 0 && (
+                <p className="empty">この日に{personName(me)}の予定はありません。</p>
+              )}
+              {visibleItems.map((item) => (
+                <div key={item.id} data-item-id={item.id}>
+                  <ItemCard
+                    item={item}
+                    mine={item.participants.includes(me)}
+                    isNow={item.id === nextItemId}
+                    checkin={checkins.get(item.id)}
+                    onToggleCheckin={onToggleCheckin}
+                    onEdit={(target) => setEditing({ item: target, isNew: false })}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <button
-          type="button"
-          className="add-btn"
-          onClick={() => setEditing({ item: emptyDraft(activeDay), isNew: true })}
-        >
-          ＋ 予定を追加
-        </button>
+            <button
+              type="button"
+              className="add-btn"
+              onClick={() => setEditing({ item: emptyDraft(activeDay), isNew: true })}
+            >
+              ＋ 予定を追加
+            </button>
 
-        <p className="footnote">
-          {activeDayInfo.label}・{visibleItems.length}件（済 {doneCount}）
-        </p>
+            <p className="footnote">
+              {activeDayInfo.label}・{visibleItems.length}件（済 {doneCount}）
+            </p>
           </>
         )}
 

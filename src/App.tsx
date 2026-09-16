@@ -146,7 +146,9 @@ export default function App() {
     return <Gate initialCode={code} onDone={handleGateDone} />
   }
 
-  if (error) {
+  // まだ一度もデータを受け取れていない場合だけ、全画面のエラーにする。
+  // 一度でも表示できていれば旅程は出したまま、エラーは画面上部のバーで知らせる。
+  if (error && items === null) {
     return (
       <div className="gate">
         <h1 className="gate__title">徳島いこか</h1>
@@ -174,6 +176,8 @@ export default function App() {
       items={items}
       checkins={checkins}
       me={me}
+      error={error}
+      onDismissError={() => setError(null)}
       onToggleCheckin={handleToggleCheckin}
       onSaveItem={handleSaveItem}
       onDeleteItem={handleDeleteItem}
