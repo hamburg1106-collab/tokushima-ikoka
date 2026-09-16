@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ItemCard from './ItemCard'
+import ItemEditor from './ItemEditor'
 import { TRIP_DAYS } from '../data/itinerary'
-import { OWNER_ID, personName } from '../data/people'
+import { ALL_IDS, OWNER_ID, personName } from '../data/people'
 import type { Checkin, PersonId, TimelineItem } from '../types'
 import { daysUntil, toDate, toDateKey } from '../lib/time'
+import { newItemId } from '../lib/tripStore'
 
 type Theme = 'light' | 'dark'
 
@@ -16,7 +18,20 @@ type Props = {
   onChangeMe: () => void
   onReset: () => void
   onToggleCheckin: (item: TimelineItem, alreadyDone: boolean) => void
+  onSaveItem: (item: TimelineItem) => void
+  onDeleteItem: (item: TimelineItem) => void
 }
+
+/** 「＋予定を追加」で開く空の下書き */
+const emptyDraft = (day: 1 | 2 | 3): TimelineItem => ({
+  id: newItemId(),
+  day,
+  date: TRIP_DAYS.find((d) => d.day === day)!.date,
+  time: '12:00',
+  title: '',
+  kind: 'other',
+  participants: [...ALL_IDS],
+})
 
 /** 今日が旅行何日目か。旅行期間外なら null */
 const todayDayNumber = (now: Date): 1 | 2 | 3 | null => {
@@ -33,10 +48,13 @@ export default function TripView({
   onChangeMe,
   onReset,
   onToggleCheckin,
+  onSaveItem,
+  onDeleteItem,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [onlyMine, setOnlyMine] = useState(false)
   const [activeDay, setActiveDay] = useState<1 | 2 | 3>(() => todayDayNumber(new Date()) ?? 1)
+  const [editing, setEditing] = useState<{ item: TimelineItem; isNew: boolean } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   // 1分ごとに現在時刻を更新（「今ここ」マーカーと自動スクロールのため）
@@ -144,10 +162,19 @@ export default function TripView({
                 isNow={item.id === nextItemId}
                 checkin={checkins.get(item.id)}
                 onToggleCheckin={onToggleCheckin}
+                onEdit={(target) => setEditing({ item: target, isNew: false })}
               />
             </div>
           ))}
         </div>
+
+        <button
+          type="button"
+          className="add-btn"
+          onClick={() => setEditing({ item: emptyDraft(activeDay), isNew: true })}
+        >
+          ＋ 予定を追加
+        </button>
 
         <p className="footnote">
           {activeDayInfo.label}・{visibleItems.length}件（済 {doneCount}）
@@ -164,6 +191,23 @@ export default function TripView({
           </div>
         )}
       </main>
+
+      {editing && (
+        <ItemEditor
+          initial={editing.item}
+          isNew={editing.isNew}
+          onClose={() => setEditing(null)}
+          onSave={(item) => {
+            onSaveItem(item)
+            setEditing(null)
+          }}
+          onDelete={(item) => {
+            if (!window.confirm(`「${item.title}」を削除します。よろしいですか？`)) return
+            onDeleteItem(item)
+            setEditing(null)
+          }}
+        />
+      )}
     </div>
   )
 }

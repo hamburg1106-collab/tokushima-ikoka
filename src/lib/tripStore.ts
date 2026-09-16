@@ -115,7 +115,21 @@ export const toggleCheckin = async (
   await setDoc(ref, checkin)
 }
 
-/** 1件を丸ごと上書き（④編集画面で使う。衝突は後勝ち） */
+/** 1件を丸ごと上書き（編集画面で使う。衝突は後勝ち） */
 export const saveItem = async (code: string, item: TimelineItem): Promise<void> => {
   await setDoc(doc(itemsRef(code), item.id), item)
+}
+
+/** 1件削除。ついでにその予定の「済」も消す */
+export const deleteItem = async (code: string, itemId: string): Promise<void> => {
+  await deleteDoc(doc(itemsRef(code), itemId))
+  await deleteDoc(doc(checkinsRef(code), itemId)).catch(() => {
+    /* 「済」が無ければ何もしなくていい */
+  })
+}
+
+/** 新規予定のID。Safariの古い版に備えてrandomUUIDが無い場合の代替を持つ */
+export const newItemId = (): string => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }

@@ -26,11 +26,19 @@ type Props = {
   /** 「済」の情報。無ければ未チェック */
   checkin?: Checkin
   onToggleCheckin: (item: TimelineItem, alreadyDone: boolean) => void
+  onEdit: (item: TimelineItem) => void
 }
 
 const isEveryone = (participants: PersonId[]) => participants.length === ALL_IDS.length
 
-export default function ItemCard({ item, mine, isNow, checkin, onToggleCheckin }: Props) {
+export default function ItemCard({
+  item,
+  mine,
+  isNow,
+  checkin,
+  onToggleCheckin,
+  onEdit,
+}: Props) {
   const done = Boolean(checkin)
   const detail: string[] = []
   if (item.move?.flightNo) detail.push(item.move.flightNo)
@@ -73,6 +81,14 @@ export default function ItemCard({ item, mine, isNow, checkin, onToggleCheckin }
         {item.note && <p className="card__note">{item.note}</p>}
 
         <div className="card__foot">
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() => onEdit(item)}
+            aria-label="この予定を編集"
+          >
+            ⋯
+          </button>
           {mine ? (
             <button
               type="button"

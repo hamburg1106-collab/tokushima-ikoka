@@ -5,7 +5,9 @@ import TripView from './components/TripView'
 import { STORAGE_KEYS } from './config'
 import { readStorage, removeStorage, writeStorage } from './lib/storage'
 import {
+  deleteItem,
   resetItinerary,
+  saveItem,
   seedItinerary,
   subscribeCheckins,
   subscribeItems,
@@ -82,6 +84,22 @@ export default function App() {
     setMe(null)
   }, [])
 
+  const handleSaveItem = useCallback(
+    (item: TimelineItem) => {
+      if (!code) return
+      saveItem(code, item).catch(() => setError('予定を保存できませんでした。'))
+    },
+    [code],
+  )
+
+  const handleDeleteItem = useCallback(
+    (item: TimelineItem) => {
+      if (!code) return
+      deleteItem(code, item.id).catch(() => setError('予定を削除できませんでした。'))
+    },
+    [code],
+  )
+
   const handleReset = useCallback(() => {
     if (!code) return
     if (!window.confirm('行程を初期状態に戻します。よろしいですか？')) return
@@ -121,6 +139,8 @@ export default function App() {
       checkins={checkins}
       me={me}
       onToggleCheckin={handleToggleCheckin}
+      onSaveItem={handleSaveItem}
+      onDeleteItem={handleDeleteItem}
       theme={theme}
       onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       onChangeMe={handleChangeMe}
