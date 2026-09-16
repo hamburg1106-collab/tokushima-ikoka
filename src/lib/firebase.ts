@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
+  persistentSingleTabManager,
 } from 'firebase/firestore'
 
 // ウェブ用のconfigは公開前提の識別子（秘密鍵ではない）。
@@ -20,8 +20,11 @@ const app = initializeApp(firebaseConfig)
 
 // persistentLocalCache: 取得済みのデータをIndexedDBに持つ。
 //   → 機内モードや圏外でも旅程が読める。書き込みは復帰時にまとめて送られる（Q12=a）。
+// tabManager: 複数タブ同期（persistentMultipleTabManager）はiOS Safariでロックの取得に
+//   失敗することがあり、そうなるとFirestore全体が failed-precondition で動かなくなる。
+//   スマホでタブを2枚開く運用は無いので、単一タブ版にして安定を取る。
 // ignoreUndefinedProperties: 値がundefinedのキーを黙って捨てる（無いと保存時に例外になる）
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
   ignoreUndefinedProperties: true,
 })

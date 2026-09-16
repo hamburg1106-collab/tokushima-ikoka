@@ -92,27 +92,44 @@ export const sortItems = (items: TimelineItem[]): TimelineItem[] =>
     .slice()
     .sort((a, b) => toDate(a.date, a.time).getTime() - toDate(b.date, b.time).getTime())
 
-export type VerifyResult = 'ok' | 'ng' | 'offline'
+export type VerifyResult =
+  | { status: 'ok' }
+  | { status: 'ng' }
+  /** 合言葉の正否を判定できなかった。detailは原因表示用（サポート時の手がかり） */
+  | { status: 'unknown'; detail: string }
+
+/** 応答が返らないまま固まるのを防ぐ。オフラインのgetDocFromServerは長く待つことがある */
+const withTimeout = <T>(task: Promise<T>, ms: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(Object.assign(new Error('timeout'), { code: 'timeout' }))
+    }, ms)
+    task.then(resolve, reject).finally(() => clearTimeout(timer))
+  })
 
 /**
  * 合言葉が正しいか確認する。
- * ルールで tripId が一致しない読み取りは permission-denied になるので、
+ * ルールで tripCode が一致しない読み取りは permission-denied になるので、
  * 「サーバから読めたかどうか」がそのまま合言葉の検証になる。
  *
  * 通常のgetDocsはオフラインだとキャッシュを返して成功してしまい、
  * 間違った合言葉でも通ってしまう。必ずサーバに問い合わせること。
+ *
+ * 判定は permission-denied のときだけ「間違い」とする。
+ * それ以外の失敗（通信不良・キャッシュ初期化の失敗・タイムアウト）を
+ * 「間違い」や「圏外」と決めつけると、正しい合言葉でも入れなくなる。
  */
 export const verifyCode = async (code: string): Promise<VerifyResult> => {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline'
   try {
-    const bundle = await getFs()
-    await bundle.fs.getDocsFromServer(itemsRef(bundle, code))
-    return 'ok'
+    const bundle = await withTimeout(getFs(), 15000)
+    // コレクション取得より軽い1件読み。存在しなくても権限チェックは働く
+    await withTimeout(bundle.fs.getDocFromServer(seedFlagRef(bundle, code)), 15000)
+    return { status: 'ok' }
   } catch (e: unknown) {
-    // 通信できなかっただけなら「間違い」とは言えない
     const codeName = (e as { code?: string } | null)?.code
-    if (codeName === 'unavailable' || codeName === 'failed-precondition') return 'offline'
-    return 'ng'
+    if (codeName === 'permission-denied') return { status: 'ng' }
+    const detail = codeName ?? (e instanceof Error ? e.message : String(e))
+    return { status: 'unknown', detail }
   }
 }
 

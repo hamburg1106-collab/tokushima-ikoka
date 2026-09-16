@@ -14,6 +14,8 @@ export default function Gate({ initialCode, onDone }: Props) {
   const [verified, setVerified] = useState(Boolean(initialCode))
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 確認できなかったときだけ「このまま進む」を出す */
+  const [canSkip, setCanSkip] = useState(false)
 
   const submitCode = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,15 +23,18 @@ export default function Gate({ initialCode, onDone }: Props) {
     if (!trimmed) return
     setChecking(true)
     setError(null)
+    setCanSkip(false)
     const result = await verifyCode(trimmed)
     setChecking(false)
-    if (result === 'ok') {
+    if (result.status === 'ok') {
       setCode(trimmed)
       setVerified(true)
-    } else if (result === 'offline') {
-      setError('電波が届いていないため確認できません。つながる場所で開いてください。')
-    } else {
+    } else if (result.status === 'ng') {
       setError('合言葉が違うようです。大文字・小文字もそのまま入れてください。')
+    } else {
+      // 合言葉が合っているのに入れない、を起こさないため進ませる
+      setError(`今は確認できませんでした（${result.detail}）。そのまま進めます。`)
+      setCanSkip(true)
     }
   }
 
@@ -57,8 +62,20 @@ export default function Gate({ initialCode, onDone }: Props) {
           />
           {error && <p className="gate__error">{error}</p>}
           <button className="primary-btn" type="submit" disabled={checking || !code.trim()}>
-            {checking ? '確認中…' : '次へ'}
+            {checking ? '確認中…' : canSkip ? 'もう一度ためす' : '次へ'}
           </button>
+          {canSkip && (
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                setCode(code.trim())
+                setVerified(true)
+              }}
+            >
+              このまま進む
+            </button>
+          )}
         </form>
       ) : (
         <div className="gate__box">
