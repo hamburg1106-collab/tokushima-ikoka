@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore } from 'firebase/firestore'
 
 // ウェブ用のconfigは公開前提の識別子（秘密鍵ではない）。
 // 実際の保護はFirestoreのセキュリティルール（合言葉＝パスの一致）で行う。
@@ -14,5 +14,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 
-// オフライン永続化は⑥で入れる（ここを initializeFirestore に差し替える）
-export const db = getFirestore(app)
+// オフライン永続化は⑥でここに足す。
+// ignoreUndefinedProperties: 値がundefinedのキーを黙って捨てる（無いと保存時に例外になる）
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true })

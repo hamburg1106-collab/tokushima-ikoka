@@ -6,14 +6,18 @@ import { STORAGE_KEYS } from './config'
 import { readStorage, removeStorage, writeStorage } from './lib/storage'
 import {
   deleteItem,
+  deletePackingItem,
   resetItinerary,
   saveItem,
+  savePackingItem,
   seedItinerary,
+  seedPacking,
   subscribeCheckins,
   subscribeItems,
+  subscribePacking,
   toggleCheckin,
 } from './lib/tripStore'
-import type { Checkin, PersonId, TimelineItem } from './types'
+import type { Checkin, PackingItem, PersonId, TimelineItem } from './types'
 
 type Theme = 'light' | 'dark'
 
@@ -27,6 +31,7 @@ export default function App() {
   )
   const [items, setItems] = useState<TimelineItem[] | null>(null)
   const [checkins, setCheckins] = useState<Map<string, Checkin>>(() => new Map())
+  const [packing, setPacking] = useState<PackingItem[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -83,6 +88,37 @@ export default function App() {
     removeStorage(STORAGE_KEYS.me)
     setMe(null)
   }, [])
+
+  // 持ち物の購読。空なら初期リストを流し込む
+  useEffect(() => {
+    if (!code) return
+    return subscribePacking(
+      code,
+      (next) => {
+        setPacking(next)
+        if (next.length === 0) {
+          seedPacking(code).catch(() => setError('持ち物リストの初期登録に失敗しました。'))
+        }
+      },
+      () => setError('持ち物リストを読み込めませんでした。'),
+    )
+  }, [code])
+
+  const handleSavePacking = useCallback(
+    (item: PackingItem) => {
+      if (!code) return
+      savePackingItem(code, item).catch(() => setError('持ち物を保存できませんでした。'))
+    },
+    [code],
+  )
+
+  const handleDeletePacking = useCallback(
+    (item: PackingItem) => {
+      if (!code) return
+      deletePackingItem(code, item.id).catch(() => setError('持ち物を削除できませんでした。'))
+    },
+    [code],
+  )
 
   const handleSaveItem = useCallback(
     (item: TimelineItem) => {
@@ -141,6 +177,9 @@ export default function App() {
       onToggleCheckin={handleToggleCheckin}
       onSaveItem={handleSaveItem}
       onDeleteItem={handleDeleteItem}
+      packing={packing}
+      onSavePacking={handleSavePacking}
+      onDeletePacking={handleDeletePacking}
       theme={theme}
       onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       onChangeMe={handleChangeMe}

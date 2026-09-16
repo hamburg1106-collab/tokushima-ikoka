@@ -42,6 +42,19 @@ export type SightDetail = {
   duration?: string
 }
 
+/** 持ち物。共有リスト1本で、各項目に担当者を付ける（Q19） */
+export type PackingItem = {
+  id: string
+  name: string
+  /** 担当者。未定なら null */
+  assignee: PersonId | null
+  checked: boolean
+  /** チェックを付けた人 */
+  checkedBy?: PersonId
+  /** 並び順 */
+  order: number
+}
+
 /** チェックイン（「済」）。予定本体とは別コレクションに置き、編集で消えないようにする */
 export type Checkin = {
   itemId: string

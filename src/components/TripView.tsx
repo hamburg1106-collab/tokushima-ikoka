@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ItemCard from './ItemCard'
 import ItemEditor from './ItemEditor'
+import PackingList from './PackingList'
 import { TRIP_DAYS } from '../data/itinerary'
 import { ALL_IDS, OWNER_ID, personName } from '../data/people'
-import type { Checkin, PersonId, TimelineItem } from '../types'
+import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
 import { daysUntil, toDate, toDateKey } from '../lib/time'
 import { newItemId } from '../lib/tripStore'
 
@@ -20,6 +21,9 @@ type Props = {
   onToggleCheckin: (item: TimelineItem, alreadyDone: boolean) => void
   onSaveItem: (item: TimelineItem) => void
   onDeleteItem: (item: TimelineItem) => void
+  packing: PackingItem[]
+  onSavePacking: (item: PackingItem) => void
+  onDeletePacking: (item: PackingItem) => void
 }
 
 /** 「＋予定を追加」で開く空の下書き */
@@ -50,11 +54,15 @@ export default function TripView({
   onToggleCheckin,
   onSaveItem,
   onDeleteItem,
+  packing,
+  onSavePacking,
+  onDeletePacking,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [onlyMine, setOnlyMine] = useState(false)
   const [activeDay, setActiveDay] = useState<1 | 2 | 3>(() => todayDayNumber(new Date()) ?? 1)
   const [editing, setEditing] = useState<{ item: TimelineItem; isNew: boolean } | null>(null)
+  const [view, setView] = useState<'trip' | 'packing'>('trip')
   const listRef = useRef<HTMLDivElement>(null)
 
   // 1分ごとに現在時刻を更新（「今ここ」マーカーと自動スクロールのため）
@@ -115,7 +123,24 @@ export default function TripView({
           <span className="header__range">10/29（木）〜10/31（土）鳴門</span>
         </p>
 
-        <nav className="tabs" aria-label="日程">
+        <div className="segmented" role="tablist" aria-label="表示切替">
+          <button
+            type="button"
+            className={`segment ${view === 'trip' ? 'segment--on' : ''}`}
+            onClick={() => setView('trip')}
+          >
+            旅程
+          </button>
+          <button
+            type="button"
+            className={`segment ${view === 'packing' ? 'segment--on' : ''}`}
+            onClick={() => setView('packing')}
+          >
+            持ち物
+          </button>
+        </div>
+
+        <nav className="tabs" aria-label="日程" hidden={view !== 'trip'}>
           {TRIP_DAYS.map((d) => (
             <button
               key={d.day}
@@ -138,16 +163,27 @@ export default function TripView({
             あなた：{personName(me)}
           </button>
 
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={onlyMine}
-              onChange={(e) => setOnlyMine(e.target.checked)}
-            />
-            <span>自分の予定だけ</span>
-          </label>
+          {view === 'trip' && (
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={onlyMine}
+                onChange={(e) => setOnlyMine(e.target.checked)}
+              />
+              <span>自分の予定だけ</span>
+            </label>
+          )}
         </div>
 
+        {view === 'packing' ? (
+          <PackingList
+            items={packing}
+            me={me}
+            onSave={onSavePacking}
+            onDelete={onDeletePacking}
+          />
+        ) : (
+          <>
         <p className="legend">左＝{personName(me)}の予定 ／ 右＝他の人の予定</p>
 
         <div className="list" ref={listRef}>
@@ -179,6 +215,8 @@ export default function TripView({
         <p className="footnote">
           {activeDayInfo.label}・{visibleItems.length}件（済 {doneCount}）
         </p>
+          </>
+        )}
 
         {me === OWNER_ID && (
           <div className="owner-area">

@@ -9,7 +9,8 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { ITINERARY } from '../data/itinerary'
-import type { Checkin, PersonId, TimelineItem } from '../types'
+import { INITIAL_PACKING } from '../data/packing'
+import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
 import { toDate } from './time'
 
 /** trips/{code}/items に予定を置く。codeが合言葉そのもの */
@@ -17,6 +18,9 @@ const itemsRef = (code: string) => collection(db, 'trips', code, 'items')
 
 /** 「済」は別コレクション。予定を編集で上書きしてもチェックインが消えないようにするため */
 const checkinsRef = (code: string) => collection(db, 'trips', code, 'checkins')
+
+/** 持ち物リスト */
+const packingRef = (code: string) => collection(db, 'trips', code, 'packing')
 
 export const sortItems = (items: TimelineItem[]): TimelineItem[] =>
   items
@@ -126,6 +130,39 @@ export const deleteItem = async (code: string, itemId: string): Promise<void> =>
   await deleteDoc(doc(checkinsRef(code), itemId)).catch(() => {
     /* 「済」が無ければ何もしなくていい */
   })
+}
+
+/** 持ち物の購読（並び順でソート済み） */
+export const subscribePacking = (
+  code: string,
+  onChange: (items: PackingItem[]) => void,
+  onError: (error: Error) => void,
+) =>
+  onSnapshot(
+    packingRef(code),
+    (snapshot) => {
+      const items = snapshot.docs.map((d) => d.data() as PackingItem)
+      onChange(items.sort((a, b) => a.order - b.order))
+    },
+    onError,
+  )
+
+/** 持ち物の初期リストを流し込む（空のときだけ呼ぶ） */
+export const seedPacking = async (code: string): Promise<void> => {
+  const batch = writeBatch(db)
+  for (const item of INITIAL_PACKING) {
+    batch.set(doc(packingRef(code), item.id), item)
+  }
+  await batch.commit()
+}
+
+/** 持ち物1件の保存（追加・チェック・担当変更すべてこれ） */
+export const savePackingItem = async (code: string, item: PackingItem): Promise<void> => {
+  await setDoc(doc(packingRef(code), item.id), item)
+}
+
+export const deletePackingItem = async (code: string, itemId: string): Promise<void> => {
+  await deleteDoc(doc(packingRef(code), itemId))
 }
 
 /** 新規予定のID。Safariの古い版に備えてrandomUUIDが無い場合の代替を持つ */
