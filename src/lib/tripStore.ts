@@ -1,26 +1,64 @@
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  onSnapshot,
-  setDoc,
-  writeBatch,
-} from 'firebase/firestore'
-import { db } from './firebase'
 import { ITINERARY } from '../data/itinerary'
 import { INITIAL_PACKING } from '../data/packing'
 import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
 import { toDate } from './time'
 
+/**
+ * Firestore SDKは重い（gzipで約150KB）ので、静的importせず動的importで後から読む。
+ * こうすると初期表示に必要なチャンクからFirestoreが外れる。
+ * 読み込み結果はキャッシュするので、SDKが読まれるのは1回だけ。
+ */
+type FirestoreBundle = {
+  db: import('firebase/firestore').Firestore
+  fs: typeof import('firebase/firestore')
+}
+
+let bundlePromise: Promise<FirestoreBundle> | null = null
+
+const getFs = (): Promise<FirestoreBundle> => {
+  bundlePromise ??= (async () => {
+    const [{ db }, fs] = await Promise.all([import('./firebase'), import('firebase/firestore')])
+    return { db, fs }
+  })()
+  return bundlePromise
+}
+
 /** trips/{code}/items に予定を置く。codeが合言葉そのもの */
-const itemsRef = (code: string) => collection(db, 'trips', code, 'items')
+const itemsRef = ({ db, fs }: FirestoreBundle, code: string) =>
+  fs.collection(db, 'trips', code, 'items')
 
 /** 「済」は別コレクション。予定を編集で上書きしてもチェックインが消えないようにするため */
-const checkinsRef = (code: string) => collection(db, 'trips', code, 'checkins')
+const checkinsRef = ({ db, fs }: FirestoreBundle, code: string) =>
+  fs.collection(db, 'trips', code, 'checkins')
 
 /** 持ち物リスト */
-const packingRef = (code: string) => collection(db, 'trips', code, 'packing')
+const packingRef = ({ db, fs }: FirestoreBundle, code: string) =>
+  fs.collection(db, 'trips', code, 'packing')
+
+/**
+ * 購読の共通処理。
+ * SDKの読み込みが終わる前に画面を閉じられても大丈夫なように、
+ * 解除フラグを見てからonSnapshotを張る。
+ */
+const subscribe = (
+  start: (bundle: FirestoreBundle) => () => void,
+  onError: (error: Error) => void,
+): (() => void) => {
+  let unsubscribe: (() => void) | null = null
+  let cancelled = false
+
+  void getFs()
+    .then((bundle) => {
+      if (cancelled) return
+      unsubscribe = start(bundle)
+    })
+    .catch((e: unknown) => onError(e instanceof Error ? e : new Error(String(e))))
+
+  return () => {
+    cancelled = true
+    unsubscribe?.()
+  }
+}
 
 export const sortItems = (items: TimelineItem[]): TimelineItem[] =>
   items
@@ -34,7 +72,8 @@ export const sortItems = (items: TimelineItem[]): TimelineItem[] =>
  */
 export const verifyCode = async (code: string): Promise<boolean> => {
   try {
-    await getDocs(itemsRef(code))
+    const bundle = await getFs()
+    await bundle.fs.getDocs(itemsRef(bundle, code))
     return true
   } catch {
     return false
@@ -47,39 +86,43 @@ export const subscribeItems = (
   onChange: (items: TimelineItem[]) => void,
   onError: (error: Error) => void,
 ) =>
-  onSnapshot(
-    itemsRef(code),
-    (snapshot) => {
-      const items = snapshot.docs.map((d) => d.data() as TimelineItem)
-      onChange(sortItems(items))
-    },
+  subscribe(
+    (bundle) =>
+      bundle.fs.onSnapshot(
+        itemsRef(bundle, code),
+        (snapshot) => onChange(sortItems(snapshot.docs.map((d) => d.data() as TimelineItem))),
+        onError,
+      ),
     onError,
   )
 
 /** 初期行程を書き込む。空のときの初回セットアップ用 */
 export const seedItinerary = async (code: string): Promise<void> => {
-  const batch = writeBatch(db)
+  const bundle = await getFs()
+  const batch = bundle.fs.writeBatch(bundle.db)
   for (const item of ITINERARY) {
-    batch.set(doc(itemsRef(code), item.id), item)
+    batch.set(bundle.fs.doc(itemsRef(bundle, code), item.id), item)
   }
   await batch.commit()
 }
 
 /**
  * 初期状態に戻す（Q39）。
- * 現在のドキュメントを全部消してから初期行程を入れ直す。
+ * 初期行程に無いドキュメントを消してから、初期行程を入れ直す。
  */
 export const resetItinerary = async (code: string): Promise<void> => {
-  const snapshot = await getDocs(itemsRef(code))
+  const bundle = await getFs()
+  const { fs, db } = bundle
+  const snapshot = await fs.getDocs(itemsRef(bundle, code))
   const initialIds = new Set(ITINERARY.map((item) => item.id))
   await Promise.all(
     snapshot.docs
       .filter((d) => !initialIds.has(d.id))
-      .map((d) => deleteDoc(doc(itemsRef(code), d.id))),
+      .map((d) => fs.deleteDoc(fs.doc(itemsRef(bundle, code), d.id))),
   )
-  const batch = writeBatch(db)
+  const batch = fs.writeBatch(db)
   for (const item of ITINERARY) {
-    batch.set(doc(itemsRef(code), item.id), item)
+    batch.set(fs.doc(itemsRef(bundle, code), item.id), item)
   }
   await batch.commit()
 }
@@ -90,16 +133,20 @@ export const subscribeCheckins = (
   onChange: (checkins: Map<string, Checkin>) => void,
   onError: (error: Error) => void,
 ) =>
-  onSnapshot(
-    checkinsRef(code),
-    (snapshot) => {
-      const map = new Map<string, Checkin>()
-      for (const d of snapshot.docs) {
-        const checkin = d.data() as Checkin
-        map.set(checkin.itemId, checkin)
-      }
-      onChange(map)
-    },
+  subscribe(
+    (bundle) =>
+      bundle.fs.onSnapshot(
+        checkinsRef(bundle, code),
+        (snapshot) => {
+          const map = new Map<string, Checkin>()
+          for (const d of snapshot.docs) {
+            const checkin = d.data() as Checkin
+            map.set(checkin.itemId, checkin)
+          }
+          onChange(map)
+        },
+        onError,
+      ),
     onError,
   )
 
@@ -110,24 +157,27 @@ export const toggleCheckin = async (
   me: PersonId,
   alreadyDone: boolean,
 ): Promise<void> => {
-  const ref = doc(checkinsRef(code), itemId)
+  const bundle = await getFs()
+  const ref = bundle.fs.doc(checkinsRef(bundle, code), itemId)
   if (alreadyDone) {
-    await deleteDoc(ref)
+    await bundle.fs.deleteDoc(ref)
     return
   }
   const checkin: Checkin = { itemId, by: me, at: new Date().toISOString() }
-  await setDoc(ref, checkin)
+  await bundle.fs.setDoc(ref, checkin)
 }
 
 /** 1件を丸ごと上書き（編集画面で使う。衝突は後勝ち） */
 export const saveItem = async (code: string, item: TimelineItem): Promise<void> => {
-  await setDoc(doc(itemsRef(code), item.id), item)
+  const bundle = await getFs()
+  await bundle.fs.setDoc(bundle.fs.doc(itemsRef(bundle, code), item.id), item)
 }
 
 /** 1件削除。ついでにその予定の「済」も消す */
 export const deleteItem = async (code: string, itemId: string): Promise<void> => {
-  await deleteDoc(doc(itemsRef(code), itemId))
-  await deleteDoc(doc(checkinsRef(code), itemId)).catch(() => {
+  const bundle = await getFs()
+  await bundle.fs.deleteDoc(bundle.fs.doc(itemsRef(bundle, code), itemId))
+  await bundle.fs.deleteDoc(bundle.fs.doc(checkinsRef(bundle, code), itemId)).catch(() => {
     /* 「済」が無ければ何もしなくていい */
   })
 }
@@ -138,31 +188,38 @@ export const subscribePacking = (
   onChange: (items: PackingItem[]) => void,
   onError: (error: Error) => void,
 ) =>
-  onSnapshot(
-    packingRef(code),
-    (snapshot) => {
-      const items = snapshot.docs.map((d) => d.data() as PackingItem)
-      onChange(items.sort((a, b) => a.order - b.order))
-    },
+  subscribe(
+    (bundle) =>
+      bundle.fs.onSnapshot(
+        packingRef(bundle, code),
+        (snapshot) => {
+          const items = snapshot.docs.map((d) => d.data() as PackingItem)
+          onChange(items.sort((a, b) => a.order - b.order))
+        },
+        onError,
+      ),
     onError,
   )
 
 /** 持ち物の初期リストを流し込む（空のときだけ呼ぶ） */
 export const seedPacking = async (code: string): Promise<void> => {
-  const batch = writeBatch(db)
+  const bundle = await getFs()
+  const batch = bundle.fs.writeBatch(bundle.db)
   for (const item of INITIAL_PACKING) {
-    batch.set(doc(packingRef(code), item.id), item)
+    batch.set(bundle.fs.doc(packingRef(bundle, code), item.id), item)
   }
   await batch.commit()
 }
 
 /** 持ち物1件の保存（追加・チェック・担当変更すべてこれ） */
 export const savePackingItem = async (code: string, item: PackingItem): Promise<void> => {
-  await setDoc(doc(packingRef(code), item.id), item)
+  const bundle = await getFs()
+  await bundle.fs.setDoc(bundle.fs.doc(packingRef(bundle, code), item.id), item)
 }
 
 export const deletePackingItem = async (code: string, itemId: string): Promise<void> => {
-  await deleteDoc(doc(packingRef(code), itemId))
+  const bundle = await getFs()
+  await bundle.fs.deleteDoc(bundle.fs.doc(packingRef(bundle, code), itemId))
 }
 
 /** 新規予定のID。Safariの古い版に備えてrandomUUIDが無い場合の代替を持つ */

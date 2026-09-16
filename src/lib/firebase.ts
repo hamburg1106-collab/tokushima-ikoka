@@ -1,5 +1,9 @@
 import { initializeApp } from 'firebase/app'
-import { initializeFirestore } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 
 // ウェブ用のconfigは公開前提の識別子（秘密鍵ではない）。
 // 実際の保護はFirestoreのセキュリティルール（合言葉＝パスの一致）で行う。
@@ -14,6 +18,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 
-// オフライン永続化は⑥でここに足す。
+// persistentLocalCache: 取得済みのデータをIndexedDBに持つ。
+//   → 機内モードや圏外でも旅程が読める。書き込みは復帰時にまとめて送られる（Q12=a）。
 // ignoreUndefinedProperties: 値がundefinedのキーを黙って捨てる（無いと保存時に例外になる）
-export const db = initializeFirestore(app, { ignoreUndefinedProperties: true })
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  ignoreUndefinedProperties: true,
+})

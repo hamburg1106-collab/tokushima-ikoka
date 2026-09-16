@@ -7,6 +7,7 @@ import { ALL_IDS, OWNER_ID, personName } from '../data/people'
 import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
 import { daysUntil, toDate, toDateKey } from '../lib/time'
 import { newItemId } from '../lib/tripStore'
+import { useOnline } from '../lib/useOnline'
 
 type Theme = 'light' | 'dark'
 
@@ -63,6 +64,7 @@ export default function TripView({
   const [activeDay, setActiveDay] = useState<1 | 2 | 3>(() => todayDayNumber(new Date()) ?? 1)
   const [editing, setEditing] = useState<{ item: TimelineItem; isNew: boolean } | null>(null)
   const [view, setView] = useState<'trip' | 'packing'>('trip')
+  const online = useOnline()
   const listRef = useRef<HTMLDivElement>(null)
 
   // 1分ごとに現在時刻を更新（「今ここ」マーカーと自動スクロールのため）
@@ -156,6 +158,12 @@ export default function TripView({
           ))}
         </nav>
       </header>
+
+      {!online && (
+        <p className="offline-bar">
+          オフラインです。表示は保存済みの内容で、変更は電波が戻ってから送られます。
+        </p>
+      )}
 
       <main className="main">
         <div className="toolbar">

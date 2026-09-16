@@ -119,6 +119,17 @@
   opacity: 0.8;
 }
 
+.offline-bar {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface-sub);
+  border: 1px solid var(--now);
+  color: var(--text-sub);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 /* ───────── ツールバー ───────── */
 .toolbar {
   display: flex;
