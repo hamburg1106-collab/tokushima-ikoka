@@ -121,9 +121,9 @@ const withTimeout = <T>(task: Promise<T>, ms: number): Promise<T> =>
  */
 export const verifyCode = async (code: string): Promise<VerifyResult> => {
   try {
-    const bundle = await withTimeout(getFs(), 15000)
+    const bundle = await withTimeout(getFs(), 8000)
     // コレクション取得より軽い1件読み。存在しなくても権限チェックは働く
-    await withTimeout(bundle.fs.getDocFromServer(seedFlagRef(bundle, code)), 15000)
+    await withTimeout(bundle.fs.getDocFromServer(seedFlagRef(bundle, code)), 6000)
     return { status: 'ok' }
   } catch (e: unknown) {
     const codeName = (e as { code?: string } | null)?.code

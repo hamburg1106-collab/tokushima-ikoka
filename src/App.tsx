@@ -33,6 +33,8 @@ export default function App() {
   const [checkins, setCheckins] = useState<Map<string, Checkin>>(() => new Map())
   const [packing, setPacking] = useState<PackingItem[]>([])
   const [error, setError] = useState<string | null>(null)
+  /** 合言葉が違うと確定した状態。Firestoreがpermission-deniedを返したときだけ立つ */
+  const [denied, setDenied] = useState(false)
   const [seeding, setSeeding] = useState(false)
   /** 初期データの流し込みは1回だけ。何度も走らせない */
   const seededRef = useRef({ items: false, packing: false })
@@ -41,6 +43,21 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     writeStorage(STORAGE_KEYS.theme, theme)
   }, [theme])
+
+  /**
+   * 読み込み失敗の共通処理。
+   * ログイン画面では合言葉を判定しきれないので、実際に読めたかどうかはここで分かる。
+   * permission-denied は「合言葉が違う」と断定してよい唯一の合図。
+   * それ以外は原因コードを添えて出す（何が起きているか分からないと直せないため）。
+   */
+  const handleLoadError = useCallback((what: string, e: Error) => {
+    const codeName = (e as { code?: string }).code
+    if (codeName === 'permission-denied') {
+      setDenied(true)
+      return
+    }
+    setError(`${what}を読み込めませんでした（${codeName ?? e.message}）`)
+  }, [])
 
   // Firestoreの購読。合言葉が決まってから張る
   useEffect(() => {
@@ -58,20 +75,16 @@ export default function App() {
           .catch(() => setError('初期データの登録に失敗しました。'))
           .finally(() => setSeeding(false))
       },
-      () => setError('データを読み込めませんでした。通信状況を確認してください。'),
+      (e) => handleLoadError('旅程', e),
     )
     return unsubscribe
-  }, [code])
+  }, [code, handleLoadError])
 
   // 「済」の購読
   useEffect(() => {
     if (!code) return
-    return subscribeCheckins(
-      code,
-      setCheckins,
-      () => setError('チェックインを読み込めませんでした。'),
-    )
-  }, [code])
+    return subscribeCheckins(code, setCheckins, (e) => handleLoadError('チェックイン', e))
+  }, [code, handleLoadError])
 
   const handleToggleCheckin = useCallback(
     (item: TimelineItem, alreadyDone: boolean) => {
@@ -87,6 +100,7 @@ export default function App() {
     writeStorage(STORAGE_KEYS.code, nextCode)
     writeStorage(STORAGE_KEYS.me, nextMe)
     setError(null)
+    setDenied(false)
     setCode(nextCode)
     setMe(nextMe)
   }, [])
@@ -98,16 +112,21 @@ export default function App() {
   }, [])
 
   /** 合言葉から入れ直す。間違った合言葉が保存されたときの復旧手段 */
-  const handleChangeCode = useCallback(() => {
-    if (!window.confirm('合言葉を入れ直しますか？')) return
+  const restartFromCode = useCallback(() => {
     removeStorage(STORAGE_KEYS.code)
     removeStorage(STORAGE_KEYS.me)
     seededRef.current = { items: false, packing: false }
     setItems(null)
     setError(null)
+    setDenied(false)
     setCode(null)
     setMe(null)
   }, [])
+
+  const handleChangeCode = useCallback(() => {
+    if (!window.confirm('合言葉を入れ直しますか？')) return
+    restartFromCode()
+  }, [restartFromCode])
 
   // 持ち物の購読。空なら初期リストを流し込む
   useEffect(() => {
@@ -120,9 +139,9 @@ export default function App() {
         seededRef.current.packing = true
         seedPacking(code).catch(() => setError('持ち物リストの初期登録に失敗しました。'))
       },
-      () => setError('持ち物リストを読み込めませんでした。'),
+      (e) => handleLoadError('持ち物リスト', e),
     )
-  }, [code])
+  }, [code, handleLoadError])
 
   const handleSavePacking = useCallback(
     (item: PackingItem) => {
@@ -166,6 +185,23 @@ export default function App() {
     return <Gate initialCode={code} onDone={handleGateDone} />
   }
 
+  // 合言葉が違うと確定した場合。入れ直す以外に出口が無いので、それだけ出す
+  if (denied) {
+    return (
+      <div className="gate">
+        <h1 className="gate__title">徳島いこか</h1>
+        <div className="gate__box">
+          <p className="gate__error">
+            合言葉が違うようです。大文字・小文字もそのまま入れてください。
+          </p>
+          <button className="primary-btn" type="button" onClick={restartFromCode}>
+            合言葉を入れ直す
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // まだ一度もデータを受け取れていない場合だけ、全画面のエラーにする。
   // 一度でも表示できていれば旅程は出したまま、エラーは画面上部のバーで知らせる。
   if (error && items === null) {
@@ -176,6 +212,9 @@ export default function App() {
           <p className="gate__error">{error}</p>
           <button className="primary-btn" type="button" onClick={() => window.location.reload()}>
             再読み込み
+          </button>
+          <button className="link-btn" type="button" onClick={restartFromCode}>
+            合言葉を入れ直す
           </button>
         </div>
       </div>
