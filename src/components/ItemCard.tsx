@@ -82,13 +82,8 @@ export default function ItemCard({
         {item.note && <p className="card__note">{item.note}</p>}
 
         <div className="card__foot">
-          <button
-            type="button"
-            className="edit-btn"
-            onClick={() => onEdit(item)}
-            aria-label="この予定を編集"
-          >
-            ⋯
+          <button type="button" className="edit-btn" onClick={() => onEdit(item)}>
+            編集
           </button>
           {mine ? (
             <button
