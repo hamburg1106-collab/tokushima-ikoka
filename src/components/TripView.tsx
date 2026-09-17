@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ItemCard from './ItemCard'
 import ItemEditor from './ItemEditor'
 import PackingList from './PackingList'
+import ShopList from './ShopList'
 import TripHeader from './TripHeader'
 import type { Theme, View } from './TripHeader'
 import { TRIP_DAYS } from '../data/itinerary'
 import { ALL_IDS, OWNER_ID, personName } from '../data/people'
-import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
+import type { Checkin, PackingItem, PersonId, ShopCandidate, TimelineItem } from '../types'
 import { daysUntil, toDate, toDateKey } from '../lib/time'
 import { newItemId } from '../lib/tripStore'
 import { useOnline } from '../lib/useOnline'
@@ -28,6 +29,10 @@ type Props = {
   packing: PackingItem[]
   onSavePacking: (item: PackingItem) => void
   onDeletePacking: (item: PackingItem) => void
+  shops: ShopCandidate[]
+  onSaveShop: (shop: ShopCandidate) => void
+  onDeleteShop: (shop: ShopCandidate) => void
+  onDecideShop: (shop: ShopCandidate, sameSlot: ShopCandidate[]) => void
 }
 
 /** 「＋予定を追加」で開く空の下書き */
@@ -64,6 +69,10 @@ export default function TripView({
   packing,
   onSavePacking,
   onDeletePacking,
+  shops,
+  onSaveShop,
+  onDeleteShop,
+  onDecideShop,
 }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [onlyMine, setOnlyMine] = useState(false)
@@ -186,6 +195,14 @@ export default function TripView({
 
         {view === 'packing' ? (
           <PackingList items={packing} me={me} onSave={onSavePacking} onDelete={onDeletePacking} />
+        ) : view === 'shops' ? (
+          <ShopList
+            shops={shops}
+            me={me}
+            onSave={onSaveShop}
+            onDelete={onDeleteShop}
+            onDecide={onDecideShop}
+          />
         ) : (
           <>
             <p className="legend">左＝{personName(me)}の予定 ／ 右＝他の人の予定</p>

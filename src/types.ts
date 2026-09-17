@@ -60,6 +60,32 @@ export type PackingItem = {
   order: number
 }
 
+/** お店候補をぶら下げる枠。店未定の食事予定のidをそのまま使う */
+export type ShopSlotId = 'd1-lunch' | 'd1-dinner'
+
+/**
+ * お店候補（Q「店未定の枠をみんなで決める」）。
+ * 参加者は追加・投票ができ、決定を付けられるのは幹事だけ。
+ */
+export type ShopCandidate = {
+  id: string
+  slot: ShopSlotId
+  name: string
+  /** アクセス・駐車場・予算などの一言メモ */
+  note?: string
+  tel?: string
+  /** 公式サイトや地図のURL。http(s)のみ受け付ける */
+  url?: string
+  /** 「ここがいい」を押した人。空配列なら誰も押していない */
+  votes: PersonId[]
+  /** 幹事が決めた1件。枠の中で1件だけ true になる */
+  decided?: boolean
+  /** アプリ上で追加した人。最初から入っている候補には無い */
+  addedBy?: PersonId
+  /** 並び順 */
+  order: number
+}
+
 /** チェックイン（「済」）。予定本体とは別コレクションに置き、編集で消えないようにする */
 export type Checkin = {
   itemId: string

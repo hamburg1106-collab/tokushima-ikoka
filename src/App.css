@@ -544,6 +544,178 @@
   gap: 8px;
 }
 
+/* ───────── お店候補 ───────── */
+.shops {
+  margin-top: 12px;
+}
+
+.shops__slots {
+  display: flex;
+  gap: 6px;
+}
+
+.shops__slot {
+  flex: 1;
+  background: var(--surface-sub);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-size: 13px;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.shops__slot--on {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.shops__hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.shops__status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+  text-align: right;
+}
+
+.shops__status strong {
+  color: var(--now);
+}
+
+.shops__list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+/* 決まった1件は一目で分かるように、左に太い線を入れる */
+.shop--decided {
+  border-color: var(--now);
+  border-left-width: 4px;
+  background: var(--mine);
+}
+
+.shop__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shop__name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.shop__badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--now);
+  color: var(--accent-text);
+}
+
+.shop__note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+
+.shop__added {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.shop__actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shop__tel,
+.shop__link {
+  text-decoration: none;
+  color: var(--accent);
+}
+
+/* 長いURLでもボタンが横に伸びきらないようにする */
+.shop__link {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop__url-edit {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shop__url-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* 「保存」は右寄せ指定を打ち消して左に置く（やめるの隣に並べるため） */
+.shop__url-actions .toggle--done {
+  margin-left: 0;
+}
+
+/* 投票ボタンの隣なので、タップ領域を広く取って誤爆を防ぐ */
+.shop__delete {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-sub);
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.shop__voters {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.shops__add {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shops__add-title {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
 /* ───────── 幹事だけの操作 ───────── */
 .owner-area {
   margin-top: 28px;

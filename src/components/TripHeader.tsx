@@ -1,7 +1,7 @@
 import { TRIP_DAYS } from '../data/itinerary'
 
 export type Theme = 'light' | 'dark'
-export type View = 'trip' | 'packing'
+export type View = 'trip' | 'packing' | 'shops'
 
 type Props = {
   theme: Theme
@@ -56,23 +56,36 @@ export default function TripHeader({
         >
           持ち物
         </button>
+        <button
+          type="button"
+          className={`segment ${view === 'shops' ? 'segment--on' : ''}`}
+          onClick={() => onChangeView('shops')}
+        >
+          お店候補
+        </button>
       </div>
 
-      <nav className="tabs" aria-label="日程" hidden={view !== 'trip'}>
-        {TRIP_DAYS.map((d) => (
-          <button
-            key={d.day}
-            type="button"
-            className={`tab ${d.day === activeDay ? 'tab--active' : ''}`}
-            onClick={() => onChangeDay(d.day)}
-          >
-            <span className="tab__label">{d.label}</span>
-            <span className="tab__date">
-              {Number(d.date.slice(5, 7))}/{Number(d.date.slice(8, 10))}（{d.weekday}）
-            </span>
-          </button>
-        ))}
-      </nav>
+      {/*
+        日別タブは旅程でしか使わないので、持ち物・お店候補では出さない。
+        hidden属性だけだと .tabs の display:flex に負けて消えないため、要素ごと外す。
+      */}
+      {view === 'trip' && (
+        <nav className="tabs" aria-label="日程">
+          {TRIP_DAYS.map((d) => (
+            <button
+              key={d.day}
+              type="button"
+              className={`tab ${d.day === activeDay ? 'tab--active' : ''}`}
+              onClick={() => onChangeDay(d.day)}
+            >
+              <span className="tab__label">{d.label}</span>
+              <span className="tab__date">
+                {Number(d.date.slice(5, 7))}/{Number(d.date.slice(8, 10))}（{d.weekday}）
+              </span>
+            </button>
+          ))}
+        </nav>
+      )}
     </header>
   )
 }

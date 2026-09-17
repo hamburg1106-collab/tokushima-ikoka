@@ -5,19 +5,24 @@ import TripView from './components/TripView'
 import { STORAGE_KEYS } from './config'
 import { readStorage, removeStorage, writeStorage } from './lib/storage'
 import {
+  decideShop,
   deleteItem,
   deletePackingItem,
+  deleteShop,
   resetItinerary,
   saveItem,
   savePackingItem,
+  saveShop,
   seedItinerary,
   seedPacking,
+  seedShops,
   subscribeCheckins,
   subscribeItems,
   subscribePacking,
+  subscribeShops,
   toggleCheckin,
 } from './lib/tripStore'
-import type { Checkin, PackingItem, PersonId, TimelineItem } from './types'
+import type { Checkin, PackingItem, PersonId, ShopCandidate, TimelineItem } from './types'
 
 type Theme = 'light' | 'dark'
 
@@ -32,12 +37,13 @@ export default function App() {
   const [items, setItems] = useState<TimelineItem[] | null>(null)
   const [checkins, setCheckins] = useState<Map<string, Checkin>>(() => new Map())
   const [packing, setPacking] = useState<PackingItem[]>([])
+  const [shops, setShops] = useState<ShopCandidate[]>([])
   const [error, setError] = useState<string | null>(null)
   /** 合言葉が違うと確定した状態。Firestoreがpermission-deniedを返したときだけ立つ */
   const [denied, setDenied] = useState(false)
   const [seeding, setSeeding] = useState(false)
   /** 初期データの流し込みは1回だけ。何度も走らせない */
-  const seededRef = useRef({ items: false, packing: false })
+  const seededRef = useRef({ items: false, packing: false, shops: false })
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -115,7 +121,7 @@ export default function App() {
   const restartFromCode = useCallback(() => {
     removeStorage(STORAGE_KEYS.code)
     removeStorage(STORAGE_KEYS.me)
-    seededRef.current = { items: false, packing: false }
+    seededRef.current = { items: false, packing: false, shops: false }
     setItems(null)
     setError(null)
     setDenied(false)
@@ -155,6 +161,45 @@ export default function App() {
     (item: PackingItem) => {
       if (!code) return
       deletePackingItem(code, item.id).catch(() => setError('持ち物を削除できませんでした。'))
+    },
+    [code],
+  )
+
+  // お店候補の購読。空なら調べておいた候補を流し込む
+  useEffect(() => {
+    if (!code) return
+    return subscribeShops(
+      code,
+      (next, fromCache) => {
+        setShops(next)
+        if (next.length > 0 || fromCache || seededRef.current.shops) return
+        seededRef.current.shops = true
+        seedShops(code).catch(() => setError('お店候補の初期登録に失敗しました。'))
+      },
+      (e) => handleLoadError('お店候補', e),
+    )
+  }, [code, handleLoadError])
+
+  const handleSaveShop = useCallback(
+    (shop: ShopCandidate) => {
+      if (!code) return
+      saveShop(code, shop).catch(() => setError('お店候補を保存できませんでした。'))
+    },
+    [code],
+  )
+
+  const handleDeleteShop = useCallback(
+    (shop: ShopCandidate) => {
+      if (!code) return
+      deleteShop(code, shop.id).catch(() => setError('お店候補を削除できませんでした。'))
+    },
+    [code],
+  )
+
+  const handleDecideShop = useCallback(
+    (shop: ShopCandidate, sameSlot: ShopCandidate[]) => {
+      if (!code) return
+      decideShop(code, shop, sameSlot).catch(() => setError('決定を保存できませんでした。'))
     },
     [code],
   )
@@ -244,6 +289,10 @@ export default function App() {
       packing={packing}
       onSavePacking={handleSavePacking}
       onDeletePacking={handleDeletePacking}
+      shops={shops}
+      onSaveShop={handleSaveShop}
+      onDeleteShop={handleDeleteShop}
+      onDecideShop={handleDecideShop}
       theme={theme}
       onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       onChangeMe={handleChangeMe}

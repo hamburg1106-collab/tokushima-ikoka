@@ -1,6 +1,7 @@
 import { ITINERARY } from '../data/itinerary'
 import { INITIAL_PACKING } from '../data/packing'
-import type { Checkin, PackingItem, PersonId, TimelineItem } from '../types'
+import { INITIAL_SHOPS } from '../data/shops'
+import type { Checkin, PackingItem, PersonId, ShopCandidate, TimelineItem } from '../types'
 import { toDate } from './time'
 
 /**
@@ -40,23 +41,30 @@ const checkinsRef = ({ db, fs }: FirestoreBundle, code: string) =>
 const packingRef = ({ db, fs }: FirestoreBundle, code: string) =>
   fs.collection(db, 'trips', code, 'packing')
 
+/** お店候補 */
+const shopsRef = ({ db, fs }: FirestoreBundle, code: string) =>
+  fs.collection(db, 'trips', code, 'shops')
+
 /** 初期データを流し込み済みかを記録しておく場所 */
 const seedFlagRef = ({ db, fs }: FirestoreBundle, code: string) =>
   fs.doc(db, 'trips', code, 'meta', 'seeded')
+
+/** 初期データの種類。seedFlagRef のフィールド名になる */
+type SeedKey = 'items' | 'packing' | 'shops'
 
 /**
  * 初期データの二重投入を防ぐ。
  * 「全部消したのに初期データが復活する」のを止めるため、
  * 件数が0かどうかではなく、この記録の有無で判断する。
  */
-const markSeeded = async (bundle: FirestoreBundle, code: string, key: 'items' | 'packing') => {
+const markSeeded = async (bundle: FirestoreBundle, code: string, key: SeedKey) => {
   await bundle.fs.setDoc(seedFlagRef(bundle, code), { [key]: true }, { merge: true })
 }
 
 const isSeeded = async (
   bundle: FirestoreBundle,
   code: string,
-  key: 'items' | 'packing',
+  key: SeedKey,
 ): Promise<boolean> => {
   const snapshot = await bundle.fs.getDoc(seedFlagRef(bundle, code))
   return snapshot.exists() && snapshot.data()?.[key] === true
@@ -297,6 +305,80 @@ export const savePackingItem = async (code: string, item: PackingItem): Promise<
 export const deletePackingItem = async (code: string, itemId: string): Promise<void> => {
   const bundle = await getFs()
   await bundle.fs.deleteDoc(bundle.fs.doc(packingRef(bundle, code), itemId))
+}
+
+/** votes が無い古いドキュメントを読んでも落ちないようにする */
+const normalizeShop = (raw: ShopCandidate): ShopCandidate =>
+  Array.isArray(raw.votes) ? raw : { ...raw, votes: [] }
+
+/** お店候補の購読（枠 → 並び順でソート済み） */
+export const subscribeShops = (
+  code: string,
+  onChange: (shops: ShopCandidate[], fromCache: boolean) => void,
+  onError: (error: Error) => void,
+) =>
+  subscribe(
+    (bundle) =>
+      bundle.fs.onSnapshot(
+        shopsRef(bundle, code),
+        (snapshot) => {
+          const shops = snapshot.docs.map((d) => normalizeShop(d.data() as ShopCandidate))
+          onChange(
+            shops.sort((a, b) => a.order - b.order),
+            snapshot.metadata.fromCache,
+          )
+        },
+        onError,
+      ),
+    onError,
+  )
+
+/** 調べておいた候補を流し込む。持ち物と同じく一度きり */
+export const seedShops = async (code: string): Promise<void> => {
+  const bundle = await getFs()
+  if (await isSeeded(bundle, code, 'shops')) return
+  const batch = bundle.fs.writeBatch(bundle.db)
+  for (const shop of INITIAL_SHOPS) {
+    batch.set(bundle.fs.doc(shopsRef(bundle, code), shop.id), shop)
+  }
+  await batch.commit()
+  await markSeeded(bundle, code, 'shops')
+}
+
+/** 候補1件の保存（追加・投票・メモ編集すべてこれ） */
+export const saveShop = async (code: string, shop: ShopCandidate): Promise<void> => {
+  const bundle = await getFs()
+  await bundle.fs.setDoc(bundle.fs.doc(shopsRef(bundle, code), shop.id), shop)
+}
+
+export const deleteShop = async (code: string, shopId: string): Promise<void> => {
+  const bundle = await getFs()
+  await bundle.fs.deleteDoc(bundle.fs.doc(shopsRef(bundle, code), shopId))
+}
+
+/**
+ * 「ここにする」を付け替える。
+ * 1つの枠で決定は1件だけなので、同じ枠の他の候補の決定を同時に外す。
+ * 画面側の一覧を渡してもらい、1回のバッチで書く（途中で2件決定の状態を作らないため）。
+ */
+export const decideShop = async (
+  code: string,
+  target: ShopCandidate,
+  sameSlot: ShopCandidate[],
+): Promise<void> => {
+  const bundle = await getFs()
+  const batch = bundle.fs.writeBatch(bundle.db)
+  const turningOff = target.decided === true
+  for (const shop of sameSlot) {
+    const decided = !turningOff && shop.id === target.id
+    // Firestoreはundefinedを受け付けないので、falseのときはフィールドごと落とす
+    const { decided: _drop, ...rest } = shop
+    batch.set(
+      bundle.fs.doc(shopsRef(bundle, code), shop.id),
+      decided ? { ...rest, decided: true } : rest,
+    )
+  }
+  await batch.commit()
 }
 
 /** 新規予定のID。Safariの古い版に備えてrandomUUIDが無い場合の代替を持つ */
