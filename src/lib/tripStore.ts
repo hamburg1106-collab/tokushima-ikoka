@@ -244,6 +244,16 @@ export const deleteItem = async (code: string, itemId: string): Promise<void> =>
   })
 }
 
+/**
+ * 担当者は1人だけの時期があった。その頃に保存されたドキュメントが
+ * サーバにも各端末のキャッシュにも残っているので、読むときに現行の形へ揃える。
+ */
+const normalizePacking = (raw: PackingItem): PackingItem => {
+  if (Array.isArray(raw.assignees)) return raw
+  const { assignee, ...rest } = raw
+  return { ...rest, assignees: assignee ? [assignee] : [] }
+}
+
 /** 持ち物の購読（並び順でソート済み） */
 export const subscribePacking = (
   code: string,
@@ -255,7 +265,7 @@ export const subscribePacking = (
       bundle.fs.onSnapshot(
         packingRef(bundle, code),
         (snapshot) => {
-          const items = snapshot.docs.map((d) => d.data() as PackingItem)
+          const items = snapshot.docs.map((d) => normalizePacking(d.data() as PackingItem))
           onChange(
             items.sort((a, b) => a.order - b.order),
             snapshot.metadata.fromCache,

@@ -410,6 +410,18 @@
   color: var(--text-sub);
 }
 
+.toggle--ghost:disabled {
+  opacity: 0.4;
+}
+
+/* 複数選択の担当ピッカーを閉じるボタン */
+.toggle--done {
+  margin-left: auto;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .switch--block {
   padding: 2px 0;
 }

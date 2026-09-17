@@ -3,6 +3,13 @@ import { PEOPLE, personName } from '../data/people'
 import type { PackingItem, PersonId } from '../types'
 import { newItemId } from '../lib/tripStore'
 
+/** 担当ボタンの表示。3人以上は幅に収まらないので畳む */
+const assigneeLabel = (ids: PersonId[]): string => {
+  if (ids.length === 0) return '担当'
+  if (ids.length <= 2) return ids.map(personName).join('・')
+  return `${personName(ids[0])} 他${ids.length - 1}人`
+}
+
 type Props = {
   items: PackingItem[]
   me: PersonId
@@ -28,26 +35,44 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
     const name = newName.trim()
     if (!name) return
     const maxOrder = items.reduce((max, item) => Math.max(max, item.order), 0)
-    onSave({ id: newItemId(), name, assignee: null, checked: false, order: maxOrder + 1 })
+    onSave({ id: newItemId(), name, assignees: [], checked: false, order: maxOrder + 1 })
     setNewName('')
   }
 
-  const toggle = (item: PackingItem) => {
-    // Firestoreはundefinedの値を受け付けないので、キーごと作り直す
+  /**
+   * 保存用に作り直す。
+   * Firestoreはundefinedを受け付けず、setDocは丸ごと上書きなので、
+   * ここで組み立てた形がそのままサーバのドキュメントになる。
+   * 旧形式の assignee は載せない（これで自然に新形式へ移行する）。
+   */
+  const build = (item: PackingItem, changes: Partial<PackingItem>): PackingItem => {
     const next: PackingItem = {
       id: item.id,
       name: item.name,
-      assignee: item.assignee,
+      assignees: item.assignees,
       order: item.order,
-      checked: !item.checked,
+      checked: item.checked,
+      ...changes,
     }
-    if (next.checked) next.checkedBy = me
-    onSave(next)
+    if (next.checked && next.checkedBy === undefined) next.checkedBy = item.checkedBy ?? me
+    if (!next.checked) delete next.checkedBy
+    return next
   }
 
-  const setAssignee = (item: PackingItem, assignee: PersonId | null) => {
-    onSave({ ...item, assignee })
-    setOpenAssignee(null)
+  const toggle = (item: PackingItem) => {
+    onSave(build(item, { checked: !item.checked, checkedBy: !item.checked ? me : undefined }))
+  }
+
+  /** 担当者は複数人。同じ人をもう一度押すと外れる */
+  const toggleAssignee = (item: PackingItem, id: PersonId) => {
+    const assignees = item.assignees.includes(id)
+      ? item.assignees.filter((a) => a !== id)
+      : [...item.assignees, id]
+    onSave(build(item, { assignees }))
+  }
+
+  const clearAssignees = (item: PackingItem) => {
+    onSave(build(item, { assignees: [] }))
   }
 
   const doneCount = items.filter((item) => item.checked).length
@@ -79,10 +104,10 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
 
             <button
               type="button"
-              className={`pack__assignee ${item.assignee ? 'pack__assignee--set' : ''}`}
+              className={`pack__assignee ${item.assignees.length > 0 ? 'pack__assignee--set' : ''}`}
               onClick={() => setOpenAssignee(openAssignee === item.id ? null : item.id)}
             >
-              {item.assignee ? personName(item.assignee) : '担当'}
+              {assigneeLabel(item.assignees)}
             </button>
 
             <button
@@ -98,13 +123,14 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
             </button>
 
             {openAssignee === item.id && (
+              // 複数選べるので、1人選んでも閉じない。閉じるのは「完了」か担当ボタンの再タップ
               <div className="pack__picker">
                 {PEOPLE.map((p) => (
                   <button
                     key={p.id}
                     type="button"
-                    className={`toggle ${item.assignee === p.id ? 'toggle--on' : ''}`}
-                    onClick={() => setAssignee(item, p.id)}
+                    className={`toggle ${item.assignees.includes(p.id) ? 'toggle--on' : ''}`}
+                    onClick={() => toggleAssignee(item, p.id)}
                   >
                     {p.name}
                   </button>
@@ -112,9 +138,17 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
                 <button
                   type="button"
                   className="toggle toggle--ghost"
-                  onClick={() => setAssignee(item, null)}
+                  onClick={() => clearAssignees(item)}
+                  disabled={item.assignees.length === 0}
                 >
-                  未定
+                  未定に戻す
+                </button>
+                <button
+                  type="button"
+                  className="toggle toggle--done"
+                  onClick={() => setOpenAssignee(null)}
+                >
+                  完了
                 </button>
               </div>
             )}

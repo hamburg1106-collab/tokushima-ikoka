@@ -46,8 +46,13 @@ export type SightDetail = {
 export type PackingItem = {
   id: string
   name: string
-  /** 担当者。未定なら null */
-  assignee: PersonId | null
+  /** 担当者。複数人で分担できる。空配列なら未定 */
+  assignees: PersonId[]
+  /**
+   * 旧形式（担当1人）。配布済みの端末やサーバに残っているので読み込み時に変換する。
+   * 新しく保存するときは書かない。
+   */
+  assignee?: PersonId | null
   checked: boolean
   /** チェックを付けた人 */
   checkedBy?: PersonId

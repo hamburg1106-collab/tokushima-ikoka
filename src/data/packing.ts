@@ -36,7 +36,7 @@ const NAMES: string[] = [
 export const INITIAL_PACKING: PackingItem[] = NAMES.map((name, index) => ({
   id: `packing-${index + 1}`,
   name,
-  assignee: null,
+  assignees: [],
   checked: false,
   order: index + 1,
 }))
