@@ -7,6 +7,11 @@ export type Person = {
   name: string
   /** ログインして自分として使えるか（柊は2歳なのでfalse） */
   canLogin: boolean
+  /**
+   * 人を見分けるための色相（0〜360）。
+   * 明るさはテーマ側で決めるので、ここでは色味だけを持つ。
+   */
+  hue: number
 }
 
 /** 予定の種別（Q22で決めた5種） */

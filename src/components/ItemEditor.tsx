@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ItemKind, PersonId, TimelineItem } from '../types'
-import { ALL_IDS, PEOPLE } from '../data/people'
+import { ALL_IDS, PEOPLE, personStyle } from '../data/people'
 import { TRIP_DAYS } from '../data/itinerary'
 
 const KINDS: { id: ItemKind; label: string; icon: string }[] = [
@@ -155,7 +155,10 @@ export default function ItemEditor({ initial, isNew, onSave, onDelete, onClose }
               <button
                 key={p.id}
                 type="button"
-                className={`toggle ${draft.participants.includes(p.id) ? 'toggle--on' : ''}`}
+                className={`toggle toggle--person person ${
+                  draft.participants.includes(p.id) ? 'toggle--on' : ''
+                }`}
+                style={personStyle(p.id)}
                 onClick={() => toggleParticipant(p.id)}
               >
                 {p.name}

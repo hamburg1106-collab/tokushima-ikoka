@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LOGINABLE } from '../data/people'
+import { LOGINABLE, personStyle } from '../data/people'
 import type { PersonId } from '../types'
 import { verifyCode } from '../lib/tripStore'
 
@@ -72,7 +72,8 @@ export default function Gate({ initialCode, onDone }: Props) {
               <button
                 key={p.id}
                 type="button"
-                className="person-btn"
+                className="person-btn person-btn--color person"
+                style={personStyle(p.id)}
                 onClick={() => onDone(code.trim(), p.id as PersonId)}
               >
                 {p.name}

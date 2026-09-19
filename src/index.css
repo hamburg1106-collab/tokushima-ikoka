@@ -14,6 +14,11 @@
   --other-text: #6b7480;
   --now: #c8622c;
 
+  /* 人ごとの色。色相は要素側(--person-h)、明暗はここで決める */
+  --person-s: 58%;
+  --person-l: 40%;
+  --person-on: #ffffff;
+
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo,
     sans-serif;
@@ -34,6 +39,10 @@
     --other: #232a32;
     --other-text: #8c97a3;
     --now: #e08b57;
+
+    --person-s: 62%;
+    --person-l: 62%;
+    --person-on: #14181d;
   }
 }
 
@@ -51,6 +60,10 @@
   --other: #232a32;
   --other-text: #8c97a3;
   --now: #e08b57;
+
+  --person-s: 62%;
+  --person-l: 62%;
+  --person-on: #14181d;
 }
 
 * {

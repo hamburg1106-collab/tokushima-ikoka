@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { OWNER_ID, personName } from '../data/people'
+import { OWNER_ID, personName, personStyle } from '../data/people'
 import { SHOP_SLOTS } from '../data/shops'
 import type { PersonId, ShopCandidate, ShopSlotId } from '../types'
 import { newItemId } from '../lib/tripStore'
@@ -284,7 +284,12 @@ export default function ShopList({ shops, me, onSave, onDelete, onDecide }: Prop
 
               {shop.votes.length > 0 && (
                 <p className="shop__voters">
-                  {shop.votes.map(personName).join('・')}が推し
+                  {shop.votes.map((id) => (
+                    <span key={id} className="chip chip--person person" style={personStyle(id)}>
+                      {personName(id)}
+                    </span>
+                  ))}
+                  が推し
                 </p>
               )}
             </li>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PEOPLE, personName } from '../data/people'
+import { PEOPLE, personName, personStyle } from '../data/people'
 import type { PackingItem, PersonId } from '../types'
 import { newItemId } from '../lib/tripStore'
 
@@ -107,6 +107,9 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
               className={`pack__assignee ${item.assignees.length > 0 ? 'pack__assignee--set' : ''}`}
               onClick={() => setOpenAssignee(openAssignee === item.id ? null : item.id)}
             >
+              {item.assignees.map((id) => (
+                <i key={id} className="person-dot person" style={personStyle(id)} />
+              ))}
               {assigneeLabel(item.assignees)}
             </button>
 
@@ -114,6 +117,8 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
               type="button"
               className="pack__delete"
               onClick={() => {
+                // 共有リストなので、他の人の持ち物を誤って消さないよう一度止める
+                if (!window.confirm(`「${item.name}」を削除しますか？`)) return
                 onDelete(item)
                 setDeleted(item)
               }}
@@ -129,7 +134,10 @@ export default function PackingList({ items, me, onSave, onDelete }: Props) {
                   <button
                     key={p.id}
                     type="button"
-                    className={`toggle ${item.assignees.includes(p.id) ? 'toggle--on' : ''}`}
+                    className={`toggle toggle--person person ${
+                      item.assignees.includes(p.id) ? 'toggle--on' : ''
+                    }`}
+                    style={personStyle(p.id)}
                     onClick={() => toggleAssignee(item, p.id)}
                   >
                     {p.name}

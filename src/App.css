@@ -405,6 +405,35 @@
   font-weight: 700;
 }
 
+/*
+ * 人ごとの色。--person-h（色相）だけを要素のstyleから渡し、
+ * 明るさはテーマの --person-l で決まるので、ダークモードでも読める。
+ */
+.person {
+  --person: hsl(var(--person-h) var(--person-s) var(--person-l));
+  --person-bg: hsl(var(--person-h) var(--person-s) var(--person-l) / 0.14);
+}
+
+/* 担当者を色の点だけで示す（名前が入らない狭い場所用） */
+.person-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--person);
+}
+
+.toggle--person {
+  border-color: var(--person);
+  color: var(--person);
+}
+
+.toggle--person.toggle--on {
+  background: var(--person);
+  border-color: var(--person);
+  color: var(--person-on);
+}
+
 .toggle--ghost {
   border-style: dashed;
   color: var(--text-sub);
@@ -511,11 +540,17 @@
   cursor: pointer;
 }
 
+/* 担当が付いているときは色の点で示す。塗りつぶすと点の色が読めなくなる */
 .pack__assignee--set {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
   font-weight: 700;
+}
+
+.person-btn--color {
+  border-bottom: 3px solid var(--person);
 }
 
 /* 「担当」の隣にあるので、間隔とタップ領域を広めに取って誤爆を防ぐ */
@@ -698,8 +733,12 @@
 
 .shop__voters {
   margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
-  color: var(--accent);
+  color: var(--text-sub);
 }
 
 .shops__add {
@@ -850,6 +889,13 @@
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 5px;
+}
+
+.chip--person {
+  background: var(--person-bg);
+  border-color: var(--person);
+  color: var(--person);
+  font-weight: 700;
 }
 
 .chip--all {

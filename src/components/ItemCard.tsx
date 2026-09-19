@@ -1,5 +1,5 @@
 import type { Checkin, ItemKind, PersonId, TimelineItem } from '../types'
-import { ALL_IDS, personName } from '../data/people'
+import { ALL_IDS, personName, personStyle } from '../data/people'
 
 const KIND_LABEL: Record<ItemKind, string> = {
   move: '移動',
@@ -78,7 +78,7 @@ export default function ItemCard({
               <span className={`chip ${label === '全員' ? 'chip--all' : ''}`}>{label}</span>
             ) : (
               item.participants.map((id) => (
-                <span key={id} className="chip">
+                <span key={id} className="chip chip--person person" style={personStyle(id)}>
                   {personName(id)}
                 </span>
               ))

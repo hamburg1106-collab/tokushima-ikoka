@@ -33,7 +33,7 @@ const app = initializeApp({
 // Nodeではストリーミングが不安定なのでロングポーリングを明示する
 const db = initializeFirestore(app, { experimentalForceLongPolling: true })
 
-for (const name of ['items', 'checkins', 'packing']) {
+for (const name of ['items', 'checkins', 'packing', 'shops']) {
   try {
     const snapshot = await getDocs(collection(db, 'trips', code, name))
     console.log(`${name}: ${snapshot.size}件`)
